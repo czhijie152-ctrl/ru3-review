@@ -39,15 +39,18 @@ try {
         & $git push origin main
 
         Write-Host '[5/5] 等待 Pages 构建 ...' -ForegroundColor Cyan
+        # 线上是 git 转成 LF 后的版本，通常比本地小几百字节（换行符差异），
+        # 所以只校验"已经返回完整页面"，不要求字节完全相等。
+        $minBytes = $size - 5000
         for ($i = 1; $i -le 20; $i++) {
             Start-Sleep -Seconds 10
             try {
                 $r = Invoke-WebRequest -Uri $site -UseBasicParsing -TimeoutSec 20 -Headers @{ 'Cache-Control' = 'no-cache' }
-                if ($r.StatusCode -eq 200 -and $r.RawContentLength -eq $size) {
-                    Write-Host ("      ✅ 已上线（{0:N0} bytes）" -f $r.RawContentLength) -ForegroundColor Green
+                if ($r.StatusCode -eq 200 -and $r.RawContentLength -ge $minBytes) {
+                    Write-Host ("      ✅ 已上线（线上 {0:N0} bytes / 本地 {1:N0} bytes）" -f $r.RawContentLength, $size) -ForegroundColor Green
                     break
                 }
-                Write-Host ("      [{0}] 已响应 {1} bytes，等待与本地一致 ..." -f $i, $r.RawContentLength)
+                Write-Host ("      [{0}] 已响应 {1:N0} bytes，等待构建完成 ..." -f $i, $r.RawContentLength)
             } catch {
                 Write-Host ("      [{0}] 还在构建 ..." -f $i)
             }
